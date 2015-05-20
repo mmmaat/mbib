@@ -1,23 +1,21 @@
 mbib
 ====
 
-A python script for manipulating bibtex entries in tex and bib files.
+A python script for manipulating bibtex entries in tex and bibtex files.
 
 * List all bibkeys cited in a LaTeX source.
-* Detection of unreferenced or uncited keys in a LaTeX source.
+* Detection of **unreferenced** or **uncited** keys in a LaTeX source.
 * Generation of BibTeX file from LaTeX source.
 
 Usage
 -----
 
-Basic usage is shown on the provided (example.tex) and (example.bib).
+Too get some help:
+~~~
+$ mbib -h
+~~~
 
-~~~
-$ mbib -h               # get some help !
-$ mbib example.tex      # list the keys cited in the tex file
-$ mbib -u example.tex   # list the keys undefined in the bib file
-$ mbib -n example.tex   # list the not cited in the tex file
-~~~
+You can have a try on the provided example.
 
 Licence
 -------
