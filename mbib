@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+
+# Copyright (C) 2015 Mathieu Bernard <mathieu_bernard@laposte.net>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+"""mbib is a tool for manipulating bibtex entries in tex and bib files"""
+
+import argparse
+import os.path
+import re
+
+def parse_args():
+    """Parses and returns arguments of the mbib program"""
+
+    # tex, bib input files and output file
+    p = argparse.ArgumentParser(description="""mbib is a tool for manipulating bibtex entries in tex and bib files""")
+    p.add_argument('texfile',metavar='TEXFILE',
+                   help='input tex file to parse')
+    p.add_argument('-l','--linkbib',metavar='BIBFILE',default=None,
+                   help='bibtex file to parse. Default is to read from \\bibliography command in TEXFILE')
+    p.add_argument('-o','--output', metavar='OUTFILE',default=None,
+                   help='output file to write. Default is to use standard output.')
+
+    # processing selection
+    g1 = p.add_mutually_exclusive_group()
+    g1.add_argument('-c','--cited', action='store_true',default=True,
+                    help='extract keys cited in TEXFILE (default)')
+    g1.add_argument('-u','--undefined',action='store_true',
+                    help='extract keys in TEXFILE not defined in BIBFILE')
+    g1.add_argument('-n','--notcited',action='store_true',
+                    help='extract keys in BIBFILE not cited in TEXFILE')
+
+    # output formating
+    g2 = p.add_mutually_exclusive_group()
+    g2.add_argument('-k','--keystyle',metavar='SEP',default='',
+                    help='specifies an output separator SEP. Default is \\n')
+    g2.add_argument('-b','--bibstyle',action='store_true',
+                    help='format output in bibtex style. Incompatible with -n option.')
+
+    # sorting options
+    g3 = p.add_mutually_exclusive_group()
+    g3.add_argument('-y','--year',action='store_true',
+                    help='sort keys by incresing publication years')
+    g3.add_argument('-Y','--Year',action='store_true',
+                    help='sort keys by decresing publication years')
+
+    return p.parse_args()
+
+
+def link_bibfile(texfile, bibfile):
+    """Return the bibfile associated to a texfile.
+
+    If bibfile==None, then try to find the bibfile from \bibliography
+    command in texfile.
+    """
+    
+    if not bibfile:
+        # get the \bibliography command in texfile
+        bib_intex = re.findall('bibliography\{(.*)\}',open(texfile).read())
+        if bib_intex:
+            bibfile = bib_intex[0]+'.bib'
+        else:
+            print('no \\bibliography command found in {}'.format(texfile))
+            exit(-1)        
+
+    # build absolute path for bibfile
+    if not os.path.isabs(bibfile):
+        texdir = os.path.dirname(texfile)
+        bibfile = os.path.join(texdir, bibfile)
+
+    return bibfile
+
+
+def parse_tex( texfile ):
+    """Returns the list of keys cited in texfile.
+
+    Parse a LaTeX file for \cite{.*} and \citep{.*}
+
+    Input: texfile is the filename of the file to parse.
+    Output: The list of all keys present in the file
+    """
+
+    # all the stuff in \cite and \citep commands
+    re_key = '\\citep?\{([a-zA-Z0-9, \n]*)\}'
+    m = re.findall(re_key,open(texfile).read())
+
+    # fill the set with the parsed keys
+    keys = set()
+    for s in m: # case \cite{a,b,c} -> [a,b,c]
+        for s2 in s.split(','):
+            keys.add(s2.strip())
+
+    return list(keys);
+
+
+def parse_bib( bibfile ):
+    """Returns the sorted list of keys cited in bibfile.
+
+    Parse a bibTeX file for @*{key,
+
+    Input: bibfile is the filename of the file to parse.
+    Output: The list of all keys present in the file
+    """
+    # each line starting with @
+    re_key = '@.*\{(.*),'
+    return re.findall(re_key,open(bibfile).read())
+
+
+def diff(a, b):
+    """Returns the set difference a - b as a list"""
+    return list(set(a) - set(b))
+
+
+def extract_year(bibkey):
+    """Extract the year from a bibtex key.
+
+    Returns 0000 if year not found.
+    """
+    re_year='([0-9]{4})'
+    m = re.search(re_year, bibkey);
+    if m: return m.group(1)
+    else: return '0000'
+
+
+def format_keystyle(keys, sep):
+    """Format a list of bibkeys in a string.
+    Each key is separated by sep.
+    """
+    if sep=='' or sep=='\\n':
+        sep='\n'
+
+    res = ''
+    for s in keys:
+        res = res + s + sep
+
+    return res[0:-len(sep)]
+
+# bug here !
+def format_bibstyle(keys, bibfile):
+    """Format a list of bibkeys in a bibtex compatible multiline string.
+    The order of keys is respected in the output.
+    """
+
+    # split the bibfile in different entries
+    entries = re.split('@',open(bibfile).read())
+
+    # get the key for each entries
+    entries_k = list()
+    for b in entries:
+        re_key = '.*\{(.*),'
+        m = re.match(re_key,b)
+        if m: entries_k.append(m.group(1))
+        else: entries_k.append(None)
+
+    # for each key to be formated, get its entry
+    res = ''
+    for k in keys:
+        if k in entries_k: res += '@'+entries[entries_k.index(k)]
+    return res
+
+
+def output(o,s):
+    """Output the string s to the output file o. If o==None, output on stdout."""
+    if o:
+        with open(o, 'w') as ofile:
+            print(s, file=ofile)
+    else: print(s)
+
+
+def main():
+    """Parse latex and bibtex files, execute the requested operations."""
+
+    # parse input arguments
+    args = parse_args()
+    
+    # check for input tex file
+    texfile = args.texfile
+    if not os.path.isfile(texfile):
+        print('{} is not a valid file'.format(texfile))
+        exit(-1)
+
+    # check for input bib file
+    bibfile = link_bibfile(texfile, args.linkbib)
+    if not os.path.isfile(bibfile):
+        print('{} is not a valid file'.format(bibfile))
+        exit(-1)
+
+    # build the bibkeys list
+    if args.undefined:
+        keys = diff(parse_tex(texfile), parse_bib(bibfile))
+    elif args.notcited:
+        keys = diff(parse_bib(bibfile), parse_tex(texfile))
+    elif args.cited:
+        keys = parse_tex(texfile)
+    else:
+        print('Should never occur')
+        exit(-1)
+
+    # sort keys as specified
+    if args.year:
+        keys.sort(key=extract_year)
+    elif args.Year:
+        keys.sort(key=extract_year, reverse=True)
+    else:
+        keys.sort()
+
+    # result string in the desired format
+    if args.bibstyle:
+        res = format_bibstyle(keys, bibfile)
+    else: # keystyle
+        res = format_keystyle(keys, args.keystyle)
+
+    # finally output the resul string
+    output(args.output, res)
+
+
+if __name__ == "__main__":
+    main()
