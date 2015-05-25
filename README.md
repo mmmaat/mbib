@@ -16,6 +16,25 @@ $ mbib -h
 ~~~
 
 You can have a try on the provided example.
+~~~
+$ mbib exemple.tex  # bibkeys cited in tex file
+Anyone1996
+Grandpa1923
+Nobody
+Someone1996
+
+$ mbib -u exemple.tex  # bibkeys cited but not defined in bibfile
+Anyone1996
+
+$ mbib -n exemple.tex  # bibkeys not cited but defined in bibfile
+Anyone1997             
+
+$ mbib -n -b exemple.tex  # same as above in bibtex style
+@misc{Anyone1997,
+       author = {Anyone Jr.},
+       title = {My book},
+       year = {1997}}
+~~~
 
 Licence
 -------

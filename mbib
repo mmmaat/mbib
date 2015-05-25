@@ -147,7 +147,7 @@ def format_keystyle(keys, sep):
 
     return res[0:-len(sep)]
 
-# bug here !
+
 def format_bibstyle(keys, bibfile):
     """Format a list of bibkeys in a bibtex compatible multiline string.
     The order of keys is respected in the output.
